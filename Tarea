@@ -1,0 +1,59 @@
+//Tarea 1 Microcontroladores
+//Diseñe una subrutina en C para utilizar las entradas analógicas y las salidas pwm para un pic 16f887.
+
+#include <xc.h>
+
+// Configuraciones del microcontrolador
+#pragma config FOSC = INTRC_NOCLKOUT
+#pragma config WDTE = OFF
+#pragma config PWRTE = OFF
+#pragma config MCLRE = ON
+#pragma config CP = OFF
+#pragma config CPD = OFF
+#pragma config BOREN = OFF
+#pragma config IESO = OFF
+#pragma config FCMEN = OFF
+#pragma config LVP = OFF
+
+#define _XTAL_FREQ 8000000  // Oscilador interno a 8 MHz
+
+void ADC_Init() {
+    ADCON0 = 0b00000001;  // Habilitar ADC en AN0 (RA0)
+    ADCON1 = 0b00000000;  // Configurar todas las entradas ANx como analógicas
+}
+
+unsigned int ADC_Read(unsigned char channel) {
+    ADCON0 &= 0xC3;        // Limpiar bits del canal
+    ADCON0 |= (channel << 2); // Seleccionar canal
+    __delay_us(5);         // Pequeña espera para estabilidad
+    GO_nDONE = 1;          // Iniciar conversión
+    while (GO_nDONE);      // Esperar a que termine
+    return (unsigned int)((ADRESH << 8) | ADRESL); // Retornar valor de 10 bits
+}
+
+void PWM_Init() {
+    PR2 = 124;             // Configuración para 1 kHz con Fosc = 8MHz
+    CCPR1L = 0;            // Inicializar PWM en 0
+    CCP1CON = 0b00001100;  // Configurar CCP1 en modo PWM
+    T2CON = 0b00000101;    // Prescaler 4, habilitar Timer2
+}
+
+void PWM_SetDuty(unsigned int duty) {
+    if (duty > 1023) duty = 1023;  // Limitar a 10 bits
+    CCPR1L = (unsigned char)(duty >> 2); // Parte alta
+    CCP1CONbits.DC1B = (unsigned char)(duty & 0x03); // Parte baja
+}
+
+void main() {
+    TRISA = 0x01;  // RA0 como entrada analógica
+    TRISC2 = 0;    // RC2 como salida PWM
+    
+    ADC_Init();    // Inicializar ADC
+    PWM_Init();    // Inicializar PWM
+
+    while (1) {
+        unsigned int adc_value = ADC_Read(0); // Leer ADC de AN0
+        PWM_SetDuty(adc_value);  // Ajustar PWM en base al ADC
+        __delay_ms(10);  // Pequeño retardo
+    }
+}
